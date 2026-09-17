@@ -22,9 +22,9 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', "de
 
 CSRF_TRUSTED_ORIGINS = ["https://devapi-aon.kcglobed.com"]
 
-ADMIN_URL = "https://devapi-aon.kcglobed.com/"
+ADMIN_URL = "https://devapi-aon.kcglobed.com"
 
-
+ADMIN_BASE_URL = "https://devapi-aon.kcglobed.com"
 # Application definition
 
 INSTALLED_APPS = [
@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'rolepermissions',
     "users",
+    "configuration"
 ]
 
 MIDDLEWARE = [
@@ -156,10 +157,10 @@ STORAGES = {
     },
 }
 
-GS_PROJECT_ID=env("aon-backend")
-GS_BUCKET_NAME = env("aon-public-bucket")
-GS_BUCKET_NAME_2 = env("aon-private-bucket")
-GS_STATIC_BUCKET_NAME = env("aon-public-bucket")
+GS_PROJECT_ID=env("GS_PROJECT_ID")
+GS_BUCKET_NAME = env("GS_BUCKET_NAME")
+GS_BUCKET_NAME_2 = env("GS_BUCKET_NAME_2")
+GS_STATIC_BUCKET_NAME = env("GS_STATIC_BUCKET_NAME")
 GS_FILE_OVERWRITE = False
 MEDIA_ROOT = "media/"
 STATIC_ROOT = "static/"

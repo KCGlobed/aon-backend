@@ -13,6 +13,13 @@ class SubAdmin(AbstractUserRole):
     @classmethod
     def get_name(cls):
         return 'SubAdmin'
+
+
+class OrganisationAdmin(AbstractUserRole):
+    available_permissions = { }
+    @classmethod
+    def get_name(cls):
+        return 'OrganisationAdmin'
     
 
 class Teacher(AbstractUserRole):

@@ -14,7 +14,7 @@ class UserManager(BaseUserManager):
             email=self.normalize_email(email.lower()),
             first_name=first_name,
             last_name=last_name,
-            phone1=phone,
+            phone=phone,
         )
 
         user.set_password(password)
@@ -74,9 +74,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     Teacher = 3
     Proctor = 4
     Student = 5
-    
-
- 
+    OrganisationAdmin = 6
 
     ROLE_CHOICES = (
         (SuperAdmin, 'SuperAdmin'),
@@ -84,6 +82,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         (Teacher, 'Teacher'),
         (Proctor, 'Proctor'),
         (Student, 'Student'),
+        (OrganisationAdmin, 'OrganisationAdmin'),
     )
 
     SOCIAL_LOGIN_CHOICES = (
