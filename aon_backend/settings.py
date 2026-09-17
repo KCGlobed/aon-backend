@@ -40,7 +40,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'rolepermissions',
     "users",
-    "configuration"
+    "configuration",
+    "content",
+    "assessment",
+    "session",
+    "candidate"
 ]
 
 MIDDLEWARE = [
