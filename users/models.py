@@ -4,6 +4,7 @@ from django.db import models
 from django.contrib.auth.models import BaseUserManager , AbstractBaseUser, PermissionsMixin
 from rolepermissions.roles import assign_role
 from aon_backend.roles import *
+from django.utils.text import slugify
 
 class UserManager(BaseUserManager):
     def create_user(self, email, first_name, last_name, password=None, confirm_password=None, phone=None):
@@ -150,3 +151,30 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_staff(self):
         "Is the user a member of staff?"
         return self.is_admin
+
+
+
+class Organization(models.Model):
+    uid = models.CharField(max_length=255,blank=True,null=True)
+    name = models.CharField(max_length=255,blank=True,null=True)
+    slug = models.SlugField(unique=True, max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add = True)
+    updated_at = models.DateTimeField(auto_now = True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+
+            while Organization.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            self.slug = slug
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name

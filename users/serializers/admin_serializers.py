@@ -120,3 +120,11 @@ class UserResetPasswordSerializer(serializers.ModelSerializer):
         user.save()
 
         return data
+
+
+class OrganizationListingSerializer(serializers.ModelSerializer):
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+
+    class Meta:
+        model = User
+        fields = ['id','uid','name', "is_active","created_at"]
