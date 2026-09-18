@@ -131,7 +131,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Everything the API reads and writes is in India time. Timestamps are still stored in UTC because
+# USE_TZ is on; this is what they are converted to on the way in and out.
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
@@ -207,3 +209,13 @@ MAILERS = {
         }
     },
 }
+
+# Session invite mails are handed to a background thread so the API returns without waiting on the
+# mail server. Set this to False to have them go out inline, which is what a management command or
+# a test wants when it needs the outcome in hand. Anything left Pending or Failed - a thread does
+# not outlive a restart of the process - can be put through again with the resend-session-invite API.
+SEND_SESSION_INVITES_IN_BACKGROUND = env.bool('SEND_SESSION_INVITES_IN_BACKGROUND', default=True)
+
+# How long an SMTP call may block, in seconds. Invites go out on a background thread, so a mail
+# server that accepts a connection and then stalls would otherwise hold that thread indefinitely.
+EMAIL_SEND_TIMEOUT = env.int('EMAIL_SEND_TIMEOUT', default=30)

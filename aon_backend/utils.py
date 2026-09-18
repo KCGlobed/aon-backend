@@ -18,7 +18,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
 from datetime import datetime
-from django.core.mail import get_connection
+from django.core.mail.backends.smtp import EmailBackend as SMTPEmailBackend
 
 
 CHUNK_SIZE = 1024 * 1024 * 10
@@ -160,14 +160,29 @@ def getSMTPConfiguration():
     if not smtp_config:
         raise ValidationError("No SMTP configuration found in the database.")
 
-    connection = get_connection(
-        backend='django.core.mail.backends.smtp.EmailBackend',
+    if not smtp_config.host:
+        raise ValidationError("The SMTP configuration has no host set.")
+
+    if smtp_config.use_tls and smtp_config.use_ssl:
+        raise ValidationError("The SMTP configuration cannot have both TLS and SSL turned on. Please turn on only one of them.")
+
+    # The backend is built directly rather than through get_connection(backend=...), which Django
+    # refuses once MAILERS is configured, as it is in settings.
+    #
+    # 'alias' matters: without it the backend treats itself as legacy and falls back on the
+    # EMAIL_* settings for anything not passed here, and reading those raises
+    # "The EMAIL_TIMEOUT setting is not available when MAILERS is defined". Naming an alias keeps
+    # every value coming from the row above. The alias is only a label used in error messages; it
+    # is never looked up in MAILERS.
+    connection = SMTPEmailBackend(
+        alias='smtp_configuration',
         host=smtp_config.host,
         port=smtp_config.port,
         username=smtp_config.username,
         password=smtp_config.password,
         use_tls=smtp_config.use_tls,
         use_ssl=smtp_config.use_ssl,
+        timeout=getattr(settings, 'EMAIL_SEND_TIMEOUT', 30),
     )
 
     connection.open()
