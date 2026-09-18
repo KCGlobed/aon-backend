@@ -77,6 +77,22 @@ class SessionDetailSerializer(InviteCountsMixin, SessionListingSerializer):
         fields = SessionListingSerializer.Meta.fields + ['invite_counts', 'students']
 
 
+class LocalDateTimeField(serializers.DateTimeField):
+    """Takes the clock time the scheduler picked and keeps it, whatever offset the request carried.
+
+    The front end sends the picked time with a 'Z' on it even though it is India time, so honouring
+    that offset would move a session by five and a half hours. The wall clock is what was agreed
+    with the students, so the offset is dropped and the time is read as India time, which is what
+    every response and invite mail shows it back as.
+    """
+
+    def enforce_timezone(self, value):
+        if timezone.is_aware(value):
+            value = value.replace(tzinfo=None)
+
+        return super().enforce_timezone(value)
+
+
 def student_queryset():
     """Everyone who can sit a test: a student account that has not been removed."""
     return User.objects.filter(role=User.Student, is_deleted=False)
@@ -184,7 +200,7 @@ class SessionCreateSerializer(SessionScheduleMixin, serializers.ModelSerializer)
 
     name = serializers.CharField(max_length=255, required=True)
     assessment = serializers.PrimaryKeyRelatedField(queryset=Assessment.objects.all(), required=True)
-    start_datetime = serializers.DateTimeField(required=True)
+    start_datetime = LocalDateTimeField(required=True)
     students = serializers.PrimaryKeyRelatedField(queryset=student_queryset(), many=True, required=False)
 
     class Meta:
@@ -218,7 +234,7 @@ class SessionUpdateSerializer(SessionScheduleMixin, serializers.ModelSerializer)
 
     name = serializers.CharField(max_length=255, required=True)
     assessment = serializers.PrimaryKeyRelatedField(queryset=Assessment.objects.all(), required=True)
-    start_datetime = serializers.DateTimeField(required=True)
+    start_datetime = LocalDateTimeField(required=True)
     students = serializers.PrimaryKeyRelatedField(queryset=student_queryset(), many=True, required=False)
 
     class Meta:
