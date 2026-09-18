@@ -11,6 +11,8 @@ urlpatterns = [
     path('get-session-student-listing/<int:pk>/', GetSessionStudentListingView.as_view(), name="get-session-student-listing"),
     path('get-session-invite-status/<int:pk>/', GetSessionInviteStatusView.as_view(), name="get-session-invite-status"),
 
+    path('get-student-attempt-detail/<int:pk>/', GetStudentAttemptDetailView.as_view(), name="get-student-attempt-detail"),
+
     path('add-session-students/<int:pk>/', AddSessionStudentsView.as_view(), name="add-session-students"),
     path('remove-session-student/<int:pk>/<int:student_id>/', RemoveSessionStudentView.as_view(), name="remove-session-student"),
     path('resend-session-invite/<int:pk>/', ResendSessionInviteView.as_view(), name="resend-session-invite"),

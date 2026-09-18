@@ -144,12 +144,19 @@ class CandidateAttemptSerializer(serializers.ModelSerializer):
 
 
 class CandidateResultSerializer(CandidateAttemptSerializer):
+    """The paper once it is closed, with what it scored overall and whether that was a pass.
+
+    'passing_marks' is the bar as it stood when the paper was sat and 'result' is the answer saved
+    against it, rather than one worked out afresh on the way out.
+    """
+
     sections = CandidateSectionResultSerializer(many=True, read_only=True)
-    percentage = serializers.DecimalField(max_digits=6, decimal_places=2, read_only=True)
+    is_passed = serializers.BooleanField(read_only=True)
 
     class Meta(CandidateAttemptSerializer.Meta):
         fields = CandidateAttemptSerializer.Meta.fields + [
-            'total_marks', 'percentage', 'correct_answers', 'wrong_answers', 'unanswered']
+            'total_marks', 'passing_marks', 'percentage', 'result', 'is_passed',
+            'correct_answers', 'wrong_answers', 'unanswered']
 
 
 class CandidateSessionSerializer(serializers.ModelSerializer):
@@ -161,15 +168,17 @@ class CandidateSessionSerializer(serializers.ModelSerializer):
     start_datetime = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     end_datetime = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     state = serializers.CharField(read_only=True)
+    passing_marks = serializers.DecimalField(source='assessment.passing_marks', max_digits=7, decimal_places=2, read_only=True)
     attempt_status = serializers.SerializerMethodField()
     attempt_id = serializers.SerializerMethodField()
+    attempt_result = serializers.SerializerMethodField()
     can_start = serializers.SerializerMethodField()
 
     class Meta:
         model = Session
         fields = ['id', 'name', 'assessment_name', 'duration', 'number_of_questions', 'total_marks',
-                  'start_datetime', 'end_datetime', 'state', 'attempt_status', 'attempt_id',
-                  'can_start']
+                  'passing_marks', 'start_datetime', 'end_datetime', 'state', 'attempt_status',
+                  'attempt_id', 'attempt_result', 'can_start']
 
     def attempt_for(self, obj):
         return self.context['attempts'].get(obj.pk)
@@ -181,6 +190,11 @@ class CandidateSessionSerializer(serializers.ModelSerializer):
     def get_attempt_id(self, obj):
         attempt = self.attempt_for(obj)
         return attempt.pk if attempt else None
+
+    def get_attempt_result(self, obj):
+        """Pending until the paper is handed in, then the Pass or Fail saved with it."""
+        attempt = self.attempt_for(obj)
+        return attempt.result if attempt else None
 
     def get_can_start(self, obj):
         attempt = self.attempt_for(obj)

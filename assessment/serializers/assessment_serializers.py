@@ -53,7 +53,7 @@ class AssessmentListingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Assessment
         fields = ['id', 'name', 'description', 'duration', 'number_of_questions', 'total_marks',
-                  'instructions', 'status', 'total_sections', 'created_by_email',
+                  'passing_marks', 'instructions', 'status', 'total_sections', 'created_by_email',
                   'created_at', 'updated_at']
 
 
@@ -187,6 +187,18 @@ class AssessmentPatternWriteMixin:
 
         return value
 
+    def check_passing_marks(self, assessment):
+        """The pass mark has to be reachable.
+
+        This can only be judged once the pattern has been written and priced: what the test is
+        worth follows from the questions its sections drew, so the check waits for sync_totals
+        rather than reading a number the request never sent.
+        """
+        if assessment.passing_marks > assessment.total_marks:
+            raise serializers.ValidationError({
+                'passing_marks': f"Passing marks cannot be more than the assessment's total marks of {assessment.total_marks}!"
+            })
+
     def save_pattern(self, assessment, sections):
         """Replaces the whole pattern. Random sections are drawn here, skipping anything already
         used elsewhere in the same test."""
@@ -244,11 +256,13 @@ class AssessmentCreateSerializer(AssessmentPatternWriteMixin, serializers.ModelS
 
     name = serializers.CharField(max_length=255, required=True)
     duration = serializers.IntegerField(min_value=1, required=True)
+    passing_marks = serializers.DecimalField(max_digits=7, decimal_places=2, min_value=0, required=False)
     sections = AssessmentSectionWriteSerializer(many=True, required=True)
 
     class Meta:
         model = Assessment
-        fields = ['name', 'description', 'duration', 'instructions', 'status', 'sections']
+        fields = ['name', 'description', 'duration', 'passing_marks', 'instructions', 'status',
+                  'sections']
 
     def validate_name(self, value):
         name = " ".join(value.split())
@@ -267,6 +281,7 @@ class AssessmentCreateSerializer(AssessmentPatternWriteMixin, serializers.ModelS
             assessment = Assessment.objects.create(**validated_data)
             self.save_pattern(assessment, sections)
             assessment.sync_totals()
+            self.check_passing_marks(assessment)
 
         return assessment
 
@@ -277,11 +292,13 @@ class AssessmentUpdateSerializer(AssessmentPatternWriteMixin, serializers.ModelS
 
     name = serializers.CharField(max_length=255, required=True)
     duration = serializers.IntegerField(min_value=1, required=True)
+    passing_marks = serializers.DecimalField(max_digits=7, decimal_places=2, min_value=0, required=False)
     sections = AssessmentSectionWriteSerializer(many=True, required=False)
 
     class Meta:
         model = Assessment
-        fields = ['name', 'description', 'duration', 'instructions', 'status', 'sections']
+        fields = ['name', 'description', 'duration', 'passing_marks', 'instructions', 'status',
+                  'sections']
 
     def validate_name(self, value):
         name = " ".join(value.split())
@@ -305,6 +322,8 @@ class AssessmentUpdateSerializer(AssessmentPatternWriteMixin, serializers.ModelS
                 self.save_pattern(instance, sections)
                 instance.sync_totals()
 
+            self.check_passing_marks(instance)
+
         return instance
 
 
@@ -320,4 +339,4 @@ class AssessmentDropdownSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Assessment
-        fields = ['id', 'name', 'duration', 'number_of_questions', 'total_marks']
+        fields = ['id', 'name', 'duration', 'number_of_questions', 'total_marks', 'passing_marks']

@@ -21,6 +21,11 @@ class TestAttempt(models.Model):
         IN_PROGRESS = 'In Progress', 'In Progress'
         SUBMITTED = 'Submitted', 'Submitted'
 
+    class Result(models.TextChoices):
+        PENDING = 'Pending', 'Pending'
+        PASS = 'Pass', 'Pass'
+        FAIL = 'Fail', 'Fail'
+
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='attempts')
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='test_attempts')
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.IN_PROGRESS)
@@ -28,6 +33,9 @@ class TestAttempt(models.Model):
     id_proof_image = models.ImageField(upload_to='candidate/id_proofs/', help_text='Photo of the identity document, taken as the test is started')
     total_marks = models.DecimalField(max_digits=9, decimal_places=2, default=0, help_text='What the student scored across every section')
     max_marks = models.DecimalField(max_digits=9, decimal_places=2, default=0, help_text="The assessment's own total, kept here so an edit to the test later does not rewrite this result")
+    passing_marks = models.DecimalField(max_digits=9, decimal_places=2, default=0, help_text="The assessment's pass mark as it stood when the paper was sat, kept here for the same reason")
+    percentage = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text='The overall score as a share of max_marks, worked out whenever the totals are')
+    result = models.CharField(max_length=10, choices=Result.choices, default=Result.PENDING, help_text='Pending while the paper is still open, then Pass or Fail against the passing marks above')
     total_questions = models.PositiveIntegerField(default=0)
     correct_answers = models.PositiveIntegerField(default=0)
     wrong_answers = models.PositiveIntegerField(default=0)
@@ -51,15 +59,35 @@ class TestAttempt(models.Model):
         return self.status == self.Status.SUBMITTED
 
     @property
-    def percentage(self):
+    def is_passed(self):
+        return self.result == self.Result.PASS
+
+    def score_percentage(self):
+        """What the paper has scored so far, as a share of what it was worth."""
         if not self.max_marks:
             return Decimal('0.00')
 
         return (Decimal(self.total_marks) / Decimal(self.max_marks) * 100).quantize(Decimal('0.01'))
 
+    def score_result(self):
+        """Pass or Fail, judged against the pass mark the assessment carried when the paper was sat.
+
+        Only a submitted paper is judged: one still being sat has scored the sections handed in so
+        far and nothing for the rest, so calling it a Fail halfway through would be wrong. With no
+        pass mark set the bar is zero, which a paper carrying negative marking can still fall below.
+        """
+        if self.status != self.Status.SUBMITTED:
+            return self.Result.PENDING
+
+        return self.Result.PASS if Decimal(self.total_marks) >= Decimal(self.passing_marks) else self.Result.FAIL
+
     def sync_totals(self):
         """Adds the submitted sections up. Sections the student never opened count as unanswered, so
-        the question totals always add up to the paper that was set."""
+        the question totals always add up to the paper that was set.
+
+        The overall score and the pass or fail that follows from it are saved here rather than
+        worked out on the way out, so the result the student was shown is the result on record.
+        """
         sections = self.sections.all()
         submitted = [section for section in sections if section.status == TestSectionAttempt.Status.SUBMITTED]
 
@@ -68,8 +96,11 @@ class TestAttempt(models.Model):
         self.wrong_answers = sum(section.wrong_answers for section in submitted)
         self.total_questions = sum(section.total_questions for section in sections)
         self.unanswered = self.total_questions - self.correct_answers - self.wrong_answers
+        self.percentage = self.score_percentage()
+        self.result = self.score_result()
         self.save(update_fields=['total_marks', 'correct_answers', 'wrong_answers',
-                                 'total_questions', 'unanswered', 'updated_at'])
+                                 'total_questions', 'unanswered', 'percentage', 'result',
+                                 'updated_at'])
 
 
 class TestSectionAttempt(models.Model):

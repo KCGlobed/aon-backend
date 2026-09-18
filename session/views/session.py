@@ -12,8 +12,12 @@ from aon_backend.pagination import CustomPageNumberPagination
 
 
 def session_response_data(session, invite_summary=None):
-    """The saved session, plus how the invite mails went whenever any were sent."""
-    data = SessionDetailSerializer(session).data
+    """The saved session, plus how the invite mails went whenever any were sent.
+
+    The attempts are read here rather than at each call site, so every response that carries a
+    session carries the same view of where its students have got to with the test.
+    """
+    data = SessionDetailSerializer(session, context={'attempts': attempts_by_student(session)}).data
     if invite_summary is not None:
         data['invite_summary'] = invite_summary
 
@@ -115,7 +119,7 @@ class GetSessionDetailView(APIView):
         if session is None:
             return error_response(message="Session not found!", data={}, status_code=status.HTTP_404_NOT_FOUND)
 
-        return success_response(message="Success", data=SessionDetailSerializer(session).data, status_code=status.HTTP_200_OK)
+        return success_response(message="Success", data=session_response_data(session), status_code=status.HTTP_200_OK)
 
 
 class CreateSessionView(APIView):
@@ -207,7 +211,7 @@ class RemoveSessionStudentView(APIView):
             return error_response(message="Student is not on this session!", data={}, status_code=status.HTTP_404_NOT_FOUND)
 
         session_student.delete()
-        return success_response(message="Student removed from the session successfully!", data=SessionDetailSerializer(session).data, status_code=status.HTTP_200_OK)
+        return success_response(message="Student removed from the session successfully!", data=session_response_data(session), status_code=status.HTTP_200_OK)
 
 
 class ResendSessionInviteView(APIView):
@@ -248,7 +252,7 @@ class ChangeSessionStatusView(APIView):
         serializer = SessionStatusSerializer(session, data = request.data, partial = True)
         if serializer.is_valid(raise_exception = True):
             session = serializer.save()
-            return success_response(message="Session status updated successfully!", data=SessionDetailSerializer(session).data, status_code=status.HTTP_200_OK)
+            return success_response(message="Session status updated successfully!", data=session_response_data(session), status_code=status.HTTP_200_OK)
 
         return error_response(message="failed", data = serializer.errors, status_code=status.HTTP_400_BAD_REQUEST)
 
@@ -325,7 +329,8 @@ class GetSessionStudentListingView(APIView):
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(students_list, request, view=self)
-        serializer = SessionStudentSerializer(page, many=True)
+        serializer = SessionStudentSerializer(
+            page, many=True, context={'attempts': attempts_by_student(session)})
         return paginator.get_paginated_response(serializer.data)
 
 

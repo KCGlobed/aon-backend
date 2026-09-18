@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     "content",
     "assessment",
     "session",
-    "candidate"
+    "candidate",
+    "dashboard"
 ]
 
 MIDDLEWARE = [

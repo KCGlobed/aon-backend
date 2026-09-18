@@ -139,7 +139,10 @@ class StartTestView(APIView):
             ])
 
             attempt.max_marks = sum(section.max_marks for section in attempt.sections.all())
-            attempt.save(update_fields=['max_marks', 'updated_at'])
+            # The pass mark is copied off the assessment as the paper opens, so raising the bar
+            # afterwards cannot turn a student who passed into one who failed.
+            attempt.passing_marks = session.assessment.passing_marks
+            attempt.save(update_fields=['max_marks', 'passing_marks', 'updated_at'])
             attempt.sync_totals()
 
         return attempt

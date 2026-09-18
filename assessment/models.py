@@ -10,6 +10,7 @@ class Assessment(models.Model):
     duration = models.PositiveIntegerField(help_text='Total duration of the test in minutes')
     number_of_questions = models.PositiveIntegerField(default=0, help_text='Kept in step with the pattern: the questions its sections add up to')
     total_marks = models.DecimalField(max_digits=7, decimal_places=2, default=0, help_text='Kept in step with the pattern: the marks the selected questions carry')
+    passing_marks = models.DecimalField(max_digits=7, decimal_places=2, default=0, help_text='What a student must score to pass. Zero means the only bar is scoring nothing at all, which a paper carrying negative marking can still fall below')
     instructions = models.TextField(blank=True)
     status = models.BooleanField(default=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='assessments')

@@ -8,4 +8,5 @@ urlpatterns = [
     path('api/assessment/',include('assessment.urls')),
     path('api/session/',include('session.urls')),
     path('api/candidate/',include('candidate.urls')),
+    path('api/dashboard/',include('dashboard.urls')),
 ]

@@ -5,8 +5,26 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from assessment.models import Assessment
+from candidate.models import TestAttempt
 from session.models import *
 from aon_backend.utils import *
+
+
+NOT_STARTED = 'Not Started'
+
+
+def local_datetime(value):
+    """A stored timestamp as the India time everything else on the API is written in."""
+    return timezone.localtime(value).strftime("%Y-%m-%d %H:%M:%S") if value else None
+
+
+def attempts_by_student(session):
+    """Each student's attempt at this session, keyed by student.
+
+    Read in one query and handed to the serializers through their context, so reporting where every
+    student's test stands does not cost a query per row.
+    """
+    return {attempt.student_id: attempt for attempt in TestAttempt.objects.filter(session=session)}
 
 
 class SessionAssessmentRefSerializer(serializers.ModelSerializer):
@@ -29,14 +47,74 @@ class SessionStudentRefSerializer(serializers.ModelSerializer):
 
 
 class SessionStudentSerializer(serializers.ModelSerializer):
+    """A student on the session: how their invite went, and where their test stands.
+
+    The test fields are read from the 'attempts' context the views hand in. Without it every
+    student reads Not Started, which is what a session nobody has opened yet actually looks like.
+    """
+
     student = SessionStudentRefSerializer(read_only=True)
     email_sent_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    attempt_id = serializers.SerializerMethodField()
+    test_status = serializers.SerializerMethodField()
+    test_started_at = serializers.SerializerMethodField()
+    test_submitted_at = serializers.SerializerMethodField()
+    total_marks = serializers.SerializerMethodField()
+    max_marks = serializers.SerializerMethodField()
+    percentage = serializers.SerializerMethodField()
+    passing_marks = serializers.SerializerMethodField()
+    result = serializers.SerializerMethodField()
 
     class Meta:
         model = SessionStudent
         fields = ['id', 'student', 'email_status', 'email_sent', 'email_sent_at', 'email_error',
-                  'created_at']
+                  'created_at', 'attempt_id', 'test_status', 'test_started_at', 'test_submitted_at',
+                  'total_marks', 'max_marks', 'passing_marks', 'percentage', 'result']
+
+    def attempt_for(self, obj):
+        return self.context.get('attempts', {}).get(obj.student_id)
+
+    def get_attempt_id(self, obj):
+        """What the admin opens to read the paper itself. Null until the student starts."""
+        attempt = self.attempt_for(obj)
+        return attempt.pk if attempt else None
+
+    def get_test_status(self, obj):
+        attempt = self.attempt_for(obj)
+        return attempt.status if attempt else NOT_STARTED
+
+    def get_test_started_at(self, obj):
+        attempt = self.attempt_for(obj)
+        return local_datetime(attempt.started_at) if attempt else None
+
+    def get_test_submitted_at(self, obj):
+        """When the student finished. Null while the paper is still open."""
+        attempt = self.attempt_for(obj)
+        return local_datetime(attempt.submitted_at) if attempt else None
+
+    def get_total_marks(self, obj):
+        """Only worth reading once the paper is in; a test still running has scored the sections
+        submitted so far and nothing for the rest."""
+        attempt = self.attempt_for(obj)
+        return str(attempt.total_marks) if attempt else None
+
+    def get_max_marks(self, obj):
+        attempt = self.attempt_for(obj)
+        return str(attempt.max_marks) if attempt else None
+
+    def get_percentage(self, obj):
+        attempt = self.attempt_for(obj)
+        return str(attempt.percentage) if attempt else None
+
+    def get_passing_marks(self, obj):
+        attempt = self.attempt_for(obj)
+        return str(attempt.passing_marks) if attempt else None
+
+    def get_result(self, obj):
+        """Pending while the paper is still open, then the Pass or Fail saved with it."""
+        attempt = self.attempt_for(obj)
+        return attempt.result if attempt else None
 
 
 class SessionListingSerializer(serializers.ModelSerializer):
@@ -70,11 +148,33 @@ class InviteCountsMixin(serializers.Serializer):
         return {'total': len(students), **counts}
 
 
-class SessionDetailSerializer(InviteCountsMixin, SessionListingSerializer):
+class AttemptCountsMixin(serializers.Serializer):
+    attempt_counts = serializers.SerializerMethodField()
+
+    def get_attempt_counts(self, obj):
+        """How far the session's students have got with the test itself, as opposed to the invite."""
+        students = list(obj.students.all())
+        attempts = self.context.get('attempts', {})
+        counts = {
+            'not_started': 0,
+            TestAttempt.Status.IN_PROGRESS.lower().replace(' ', '_'): 0,
+            TestAttempt.Status.SUBMITTED.lower(): 0,
+        }
+
+        for session_student in students:
+            attempt = attempts.get(session_student.student_id)
+            key = attempt.status.lower().replace(' ', '_') if attempt else 'not_started'
+            counts[key] = counts.get(key, 0) + 1
+
+        return {'total': len(students), **counts}
+
+
+class SessionDetailSerializer(InviteCountsMixin, AttemptCountsMixin, SessionListingSerializer):
     students = SessionStudentSerializer(many=True, read_only=True)
 
     class Meta(SessionListingSerializer.Meta):
-        fields = SessionListingSerializer.Meta.fields + ['invite_counts', 'students']
+        fields = SessionListingSerializer.Meta.fields + ['invite_counts', 'attempt_counts',
+                                                         'students']
 
 
 class LocalDateTimeField(serializers.DateTimeField):
